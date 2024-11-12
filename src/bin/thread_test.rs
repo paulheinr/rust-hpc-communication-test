@@ -5,7 +5,7 @@ use rust_hpc_communication_test::communicator::ChannelSimCommunicator;
 use rust_hpc_communication_test::test_execution::{ping_pong_client, ping_pong_server};
 
 fn main() {
-    let iter = 10;
+    let iter = 10_000;
     let message = b"Hello, World!";
 
     let comms = ChannelSimCommunicator::create_n_2_n(2);

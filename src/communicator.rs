@@ -1,8 +1,7 @@
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::mpsc::{Receiver, Sender};
 
-use futures::executor::block_on;
-use tokio::net::UdpSocket;
+use tokio::runtime::Runtime;
 
 pub trait Communicator {
     fn rank(&self) -> u32;
@@ -12,8 +11,9 @@ pub trait Communicator {
 
 pub struct TokioCommunicator {
     rank: u32,
-    socket: UdpSocket,
+    socket: tokio::net::UdpSocket,
     receiver: Vec<SocketAddr>,
+    runtime: Runtime,
 }
 
 impl Communicator for TokioCommunicator {
@@ -22,17 +22,19 @@ impl Communicator for TokioCommunicator {
     }
 
     fn send(&self, buffer: &[u8], dest: u32) {
-        block_on(self.send(buffer, dest));
+        self.runtime.block_on(self.send(buffer, dest));
     }
 
     fn recv(&self, buffer: &mut [u8], _source: u32) {
-        block_on(self.recv(buffer, _source));
+        self.runtime.block_on(self.recv(buffer, _source));
     }
 }
 
 impl TokioCommunicator {
-    pub async fn create_n_2_n(n: u32, rank: u32) -> TokioCommunicator {
-        let socket = UdpSocket::bind(SocketAddr::new(IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)), (8080 + rank) as u16)).await.unwrap();
+    pub fn create_n_2_n(n: u32, rank: u32) -> TokioCommunicator {
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let socket = runtime.block_on(tokio::net::UdpSocket::bind(SocketAddr::new(IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)), (8080 + rank) as u16))).unwrap();
+
         let receiver = (0..n)
             .map(|i| SocketAddr::new(IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)), (8080 + i) as u16))
             .collect();
@@ -41,6 +43,7 @@ impl TokioCommunicator {
             rank,
             socket,
             receiver,
+            runtime,
         }
     }
 
@@ -51,6 +54,41 @@ impl TokioCommunicator {
     async fn send(&self, buffer: &[u8], dest: u32) {
         self.socket
             .send_to(buffer, self.receiver[dest as usize]).await.unwrap();
+    }
+}
+
+pub struct StdCommunicator {
+    rank: u32,
+    socket: UdpSocket,
+    receiver: Vec<SocketAddr>,
+}
+
+impl Communicator for StdCommunicator {
+    fn rank(&self) -> u32 {
+        self.rank
+    }
+
+    fn send(&self, buffer: &[u8], dest: u32) {
+        self.socket.send_to(buffer, self.receiver[dest as usize]).unwrap();
+    }
+
+    fn recv(&self, buffer: &mut [u8], _source: u32) {
+        self.socket.recv_from(buffer).unwrap();
+    }
+}
+
+impl StdCommunicator {
+    pub fn create_n_2_n(n: u32, rank: u32) -> StdCommunicator {
+        let socket = UdpSocket::bind(SocketAddr::new(IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)), (8080 + rank) as u16)).unwrap();
+        let receiver = (0..n)
+            .map(|i| SocketAddr::new(IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)), (8080 + i) as u16))
+            .collect();
+
+        StdCommunicator {
+            rank,
+            socket,
+            receiver,
+        }
     }
 }
 
@@ -66,12 +104,10 @@ impl Communicator for ChannelSimCommunicator {
     }
 
     fn send(&self, buffer: &[u8], dest: u32) {
-        println!("Sending from {} to {}", self.rank, dest);
         self.senders[dest as usize].send(buffer.to_vec()).unwrap();
     }
 
     fn recv(&self, buffer: &mut [u8], _source: u32) {
-        println!("Receiving at {}", self.rank);
         buffer.copy_from_slice(&self.receivers.recv().unwrap());
     }
 }
