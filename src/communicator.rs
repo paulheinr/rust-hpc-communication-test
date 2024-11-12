@@ -5,6 +5,7 @@ use tokio::runtime::Runtime;
 
 pub trait Communicator {
     fn rank(&self) -> u32;
+    fn size(&self) -> u32;
     fn send(&self, buffer: &[u8], dest: u32);
     fn recv(&self, buffer: &mut [u8], source: u32);
 }
@@ -19,6 +20,10 @@ pub struct TokioCommunicator {
 impl Communicator for TokioCommunicator {
     fn rank(&self) -> u32 {
         self.rank
+    }
+
+    fn size(&self) -> u32 {
+        self.receiver.len() as u32
     }
 
     fn send(&self, buffer: &[u8], dest: u32) {
@@ -68,6 +73,10 @@ impl Communicator for StdCommunicator {
         self.rank
     }
 
+    fn size(&self) -> u32 {
+        self.receiver.len() as u32
+    }
+
     fn send(&self, buffer: &[u8], dest: u32) {
         self.socket.send_to(buffer, self.receiver[dest as usize]).unwrap();
     }
@@ -101,6 +110,10 @@ pub struct ChannelSimCommunicator {
 impl Communicator for ChannelSimCommunicator {
     fn rank(&self) -> u32 {
         self.rank
+    }
+
+    fn size(&self) -> u32 {
+        self.senders.len() as u32
     }
 
     fn send(&self, buffer: &[u8], dest: u32) {

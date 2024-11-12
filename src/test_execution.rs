@@ -1,6 +1,7 @@
 use crate::communicator::Communicator;
 
 pub fn ping_pong_client<C: Communicator>(iter: u32, communicator: C, message: &[u8]) {
+    check_ping_pong(&communicator);
     let other = 1;
 
     //Measure elapsed time
@@ -16,6 +17,7 @@ pub fn ping_pong_client<C: Communicator>(iter: u32, communicator: C, message: &[
 }
 
 pub fn ping_pong_server<C: Communicator>(iter: u32, communicator: C, length: usize) {
+    check_ping_pong(&communicator);
     let other = 0;
 
     for i in 0..iter {
@@ -23,5 +25,11 @@ pub fn ping_pong_server<C: Communicator>(iter: u32, communicator: C, length: usi
         let in_buffer = &mut vec![0; length];
         communicator.recv(in_buffer, other);
         communicator.send(in_buffer, other);
+    }
+}
+
+fn check_ping_pong<C: Communicator>(communicator: &C) {
+    if communicator.size() {
+        panic!("For ping pong, the communicator should have exactly 2 ranks");
     }
 }
