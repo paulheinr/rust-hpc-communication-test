@@ -2,7 +2,7 @@ use std::thread;
 use std::thread::JoinHandle;
 
 use rust_hpc_communication_test::communicator::ChannelSimCommunicator;
-use rust_hpc_communication_test::test_execution::{ping_pong_client, ping_pong_server};
+use rust_hpc_communication_test::test_execution::TestExecution;
 
 fn main() {
     let iter = 10_000;
@@ -13,11 +13,11 @@ fn main() {
     let handles: Vec<JoinHandle<()>> = comms.into_iter().enumerate().map(|(i, comm)| {
         if i == 0 {
             thread::Builder::new().name(i.to_string()).spawn(move || {
-                ping_pong_client(iter, comm, message);
+                TestExecution::new(comm, iter, 1000).ping_pong_client(message);
             }).expect("Failed to spawn thread.")
         } else {
             thread::Builder::new().name(i.to_string()).spawn(move || {
-                ping_pong_server(iter, comm, message.len());
+                TestExecution::new(comm, iter, 1000).ping_pong_server(message.len());
             }).expect("Failed to spawn thread.")
         }
     }).collect();
