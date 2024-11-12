@@ -1,6 +1,7 @@
 use std::net::{IpAddr, SocketAddr};
 use std::sync::mpsc::{Receiver, Sender};
 
+use futures::executor::block_on;
 use tokio::net::UdpSocket;
 
 pub trait Communicator {
@@ -21,18 +22,11 @@ impl Communicator for TokioCommunicator {
     }
 
     fn send(&self, buffer: &[u8], dest: u32) {
-        tokio::runtime::Runtime::new().unwrap().block_on(async {
-            self.socket
-                .send_to(buffer, self.receiver[dest as usize]).await
-        }).expect("TODO: panic message");
+        block_on(self.send(buffer, dest));
     }
 
     fn recv(&self, buffer: &mut [u8], _source: u32) {
-        tokio::runtime::Runtime::new().unwrap().block_on(async {
-            self.socket.recv_from(buffer).await
-        }).expect("TODO: panic message");
-        //let (len, _) = self.socket.recv_from(buffer).await.unwrap();
-        //buffer[len..].iter_mut().for_each(|x| *x = 0);
+        block_on(self.recv(buffer, _source));
     }
 }
 
@@ -48,6 +42,15 @@ impl TokioCommunicator {
             socket,
             receiver,
         }
+    }
+
+    async fn recv(&self, buffer: &mut [u8], _source: u32) {
+        self.socket.recv_from(buffer).await.unwrap();
+    }
+
+    async fn send(&self, buffer: &[u8], dest: u32) {
+        self.socket
+            .send_to(buffer, self.receiver[dest as usize]).await.unwrap();
     }
 }
 

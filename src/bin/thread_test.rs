@@ -2,12 +2,11 @@ use std::thread;
 use std::thread::JoinHandle;
 
 use rust_hpc_communication_test::communicator::ChannelSimCommunicator;
-use rust_hpc_communication_test::test_execution::{ping_pong_client, server};
+use rust_hpc_communication_test::test_execution::{ping_pong_client, ping_pong_server};
 
 fn main() {
     let iter = 10;
     let message = b"Hello, World!";
-
 
     let comms = ChannelSimCommunicator::create_n_2_n(2);
 
@@ -18,7 +17,7 @@ fn main() {
             }).expect("Failed to spawn thread.")
         } else {
             thread::Builder::new().name(i.to_string()).spawn(move || {
-                server(iter, comm, message.len());
+                ping_pong_server(iter, comm, message.len());
             }).expect("Failed to spawn thread.")
         }
     }).collect();

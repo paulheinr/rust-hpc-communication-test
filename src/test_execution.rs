@@ -11,7 +11,7 @@ pub fn ping_pong_client<C: Communicator>(iter: u32, communicator: C, message: &[
     }
 }
 
-pub fn server<C: Communicator>(iter: u32, communicator: C, length: usize) {
+pub fn ping_pong_server<C: Communicator>(iter: u32, communicator: C, length: usize) {
     let other = 0;
 
     for _ in 0..iter {

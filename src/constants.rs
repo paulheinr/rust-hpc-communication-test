@@ -1,0 +1,1 @@
+pub const MESSAGE: &[u8; 13] = b"Hello, World!";
