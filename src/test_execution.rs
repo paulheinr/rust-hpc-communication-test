@@ -4,7 +4,7 @@ use derive_builder::Builder;
 use rand::{Rng, SeedableRng};
 
 #[derive(Parser, Debug, Clone, Default)]
-pub struct TestArguments {
+pub struct BasicArguments {
     #[arg(short, long, default_value_t = 90_000)]
     pub iterations: u32,
     #[arg(short, long, default_value_t = 5_000)]
@@ -19,11 +19,11 @@ pub struct TestArguments {
 #[builder(setter(into))]
 pub struct TestExecution<C> {
     communicator: C,
-    arguments: TestArguments,
+    arguments: BasicArguments,
 }
 
 impl<C: TestCommunicator> TestExecution<C> {
-    pub fn new(communicator: C, arguments: TestArguments) -> Self {
+    pub fn new(communicator: C, arguments: BasicArguments) -> Self {
         TestExecution {
             communicator,
             arguments,

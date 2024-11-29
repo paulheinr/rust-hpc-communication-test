@@ -1,9 +1,9 @@
 use clap::Parser;
 use rust_hpc_communication_test::communicator::{MpiCommunicator, TestCommunicator};
-use rust_hpc_communication_test::test_execution::{TestArguments, TestExecution};
+use rust_hpc_communication_test::test_execution::{BasicArguments, TestExecution};
 
 fn main() {
-    let args = TestArguments::parse();
+    let args = BasicArguments::parse();
     let universe = mpi::initialize().unwrap();
     let comm = universe.world();
 

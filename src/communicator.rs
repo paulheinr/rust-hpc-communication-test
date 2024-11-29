@@ -1,3 +1,4 @@
+use clap::Parser;
 use mpi::collective::CommunicatorCollectives;
 use mpi::point_to_point::{Destination, Source};
 use mpi::topology::{Communicator, SimpleCommunicator};
@@ -6,6 +7,12 @@ use std::net::{IpAddr, SocketAddr, UdpSocket};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Barrier};
 use tokio::runtime::Runtime;
+
+#[derive(Parser, Debug, Clone, Default)]
+pub struct UdpArguments {
+    #[arg(short, long)]
+    pub server_address: String,
+}
 
 pub trait TestCommunicator {
     fn rank(&self) -> u32;
@@ -142,7 +149,7 @@ impl TestCommunicator for StdCommunicator {
     }
 
     fn recv(&self, buffer: &mut [u8], _source: u32) {
-        self.socket.recv_from(buffer).unwrap();
+        let (_, _addr) = self.socket.recv_from(buffer).unwrap();
     }
 
     fn barrier(&self) {
