@@ -1,10 +1,11 @@
+use clap::Parser;
 use rust_hpc_communication_test::communicator::TokioCommunicator;
-use rust_hpc_communication_test::constants::MESSAGE;
-use rust_hpc_communication_test::test_execution::TestExecution;
+use rust_hpc_communication_test::test_execution::{TestArguments, TestExecution};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = TestArguments::parse();
     let communicator = TokioCommunicator::create_n_2_n(2, 1);
-    let test_execution = TestExecution::new(communicator, 10_000, 1000);
-    test_execution.ping_pong_server(MESSAGE.len());
+    let test_execution = TestExecution::new(communicator, args);
+    test_execution.ping_pong_server();
     Ok(())
 }
