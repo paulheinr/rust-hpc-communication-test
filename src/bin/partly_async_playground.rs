@@ -22,25 +22,28 @@ struct MyGrpcRequest {
 }
 
 fn main() {
-    let (grpc_tx, mut grpc_rx) = mpsc::channel::<MyGrpcRequest>();
+    let (grpc_tx, grpc_rx) = mpsc::channel::<MyGrpcRequest>();
 
     // gRPC handler task (simulated with delay)
-    thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_multi_thread()
+    let grpc_handler = thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap();
 
-        rt.block_on(async move {while let Ok(req) = grpc_rx.recv() {
-            println!("[gRPC Handler] Received payload: {:?}", req.payload);
-            let resp = simulate_grpc_call(req.payload).await;
-            let _ = req.response_tx.send(resp);
-        }})
+        rt.block_on(async move {
+            while let Ok(req) = grpc_rx.recv() {
+                println!("[gRPC Handler] Received payload: {:?}", req.payload);
+                let resp = simulate_grpc_call(req.payload).await;
+                println!("[gRPC Handler] Sending response: {:?}", resp);
+                let _ = req.response_tx.send(resp);
+            }
+        })
     });
 
     // Simulate starting multiple threads
     let mut handles = Vec::new();
-    for i in 0..4 {
+    for i in 0..3 {
         let tx = grpc_tx.clone();
         handles.push(thread::spawn(move || {
             // Each thread creates a request
@@ -55,12 +58,9 @@ fn main() {
                 .unwrap();
             println!("[Thread {}] Sent payload.", i);
 
-            // Do some heavy work
-            println!("[Thread {}] Doing heavy work...", i);
-            thread::sleep(Duration::from_millis(500));
-
             let mut recv = false;
             while !recv {
+                heavy_work(i);
                 // Now ready to receive the result
                 match resp_rx.try_recv() {
                     // Ok(Some(response)) => println!("[Thread {}] Got response: {:?}", i, response),
@@ -83,10 +83,17 @@ fn main() {
     for handle in handles {
         handle.join().unwrap();
     }
+    println!("Status of grpc handler: {:?}", grpc_handler.is_finished());
+}
+
+fn heavy_work(i: u32) {
+    println!("[Thread {}] Doing heavy work...", i);
+    thread::sleep(Duration::from_millis(500));
+    println!("[Thread {}] Finished heavy work, waiting for response...", i);
 }
 
 // Simulate an async gRPC call
 async fn simulate_grpc_call(payload: Payload) -> GrpcResponse {
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    tokio::time::sleep(Duration::from_millis((payload.0 * 100) as u64)).await;
     GrpcResponse(format!("Hello from gRPC for id {}", payload.0))
 }
