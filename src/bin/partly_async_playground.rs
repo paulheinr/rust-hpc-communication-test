@@ -32,22 +32,24 @@ fn main() {
             .unwrap();
 
         rt.block_on(async move {
-            // Use a Vec to keep track of JoinHandles if you want to await them later (optional)
-            let mut tasks = Vec::new();
-            while let Ok(req) = grpc_rx.try_recv() {
-                println!("[gRPC Handler] Received payload: {:?}", req.payload);
-                // Spawn a new task for each request
-                let task = tokio::spawn(async move {
-                    let resp = simulate_grpc_call(req.payload).await;
-                    println!("[gRPC Handler] Sending response: {:?}", resp);
-                    let _ = req.response_tx.send(resp);
-                });
-                tasks.push(task);
-            }
-            // Optionally, wait for all tasks to finish before exiting
-            for t in tasks {
-                let _ = t.await;
-            }
+            loop {
+                // Use a Vec to keep track of JoinHandles if you want to await them later (optional)
+                let mut tasks = Vec::new();
+                while let Ok(req) = grpc_rx.try_recv() {
+                    println!("[gRPC Handler] Received payload: {:?}", req.payload);
+                    // Spawn a new task for each request
+                    let task = tokio::spawn(async move {
+                        let resp = simulate_grpc_call(req.payload).await;
+                        println!("[gRPC Handler] Sending response: {:?}", resp);
+                        let _ = req.response_tx.send(resp);
+                    });
+                    tasks.push(task);
+                }
+                // Optionally, wait for all tasks to finish before exiting
+                for t in tasks {
+                    let _ = t.await;
+                }
+            }            
         })
     });
 
@@ -56,6 +58,8 @@ fn main() {
     for i in 0..3 {
         let tx = grpc_tx.clone();
         handles.push(thread::spawn(move || {
+            heavy_work(i);
+            
             // Each thread creates a request
             let payload = Payload(i);
             let (resp_tx, mut resp_rx) = oneshot::channel();
