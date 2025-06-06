@@ -32,11 +32,21 @@ fn main() {
             .unwrap();
 
         rt.block_on(async move {
-            while let Ok(req) = grpc_rx.recv() {
+            // Use a Vec to keep track of JoinHandles if you want to await them later (optional)
+            let mut tasks = Vec::new();
+            while let Ok(req) = grpc_rx.try_recv() {
                 println!("[gRPC Handler] Received payload: {:?}", req.payload);
-                let resp = simulate_grpc_call(req.payload).await;
-                println!("[gRPC Handler] Sending response: {:?}", resp);
-                let _ = req.response_tx.send(resp);
+                // Spawn a new task for each request
+                let task = tokio::spawn(async move {
+                    let resp = simulate_grpc_call(req.payload).await;
+                    println!("[gRPC Handler] Sending response: {:?}", resp);
+                    let _ = req.response_tx.send(resp);
+                });
+                tasks.push(task);
+            }
+            // Optionally, wait for all tasks to finish before exiting
+            for t in tasks {
+                let _ = t.await;
             }
         })
     });
@@ -63,9 +73,6 @@ fn main() {
                 heavy_work(i);
                 // Now ready to receive the result
                 match resp_rx.try_recv() {
-                    // Ok(Some(response)) => println!("[Thread {}] Got response: {:?}", i, response),
-                    // Ok(None) => println!("[Thread {}] Got response: {:?}", i, response)
-                    // Err(e) => println!("[Thread {}] Error receiving response: {}", i, e),
                     // _ => {}
                     Ok(r) => {
                         println!("[Thread {}] Got response: {:?}", i, r);
