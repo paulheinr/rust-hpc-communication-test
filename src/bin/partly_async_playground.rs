@@ -22,7 +22,7 @@ struct MyGrpcRequest {
 }
 
 fn main() {
-    let (grpc_tx, grpc_rx) = mpsc::channel::<MyGrpcRequest>();
+    let (grpc_tx, mut grpc_rx) = tokio::sync::mpsc::channel::<MyGrpcRequest>(100);
 
     // gRPC handler task (simulated with delay)
     let grpc_handler = thread::spawn(move || {
@@ -32,24 +32,16 @@ fn main() {
             .unwrap();
 
         rt.block_on(async move {
-            loop {
-                // Use a Vec to keep track of JoinHandles if you want to await them later (optional)
-                let mut tasks = Vec::new();
-                while let Ok(req) = grpc_rx.try_recv() {
-                    println!("[gRPC Handler] Received payload: {:?}", req.payload);
-                    // Spawn a new task for each request
-                    let task = tokio::spawn(async move {
-                        let resp = simulate_grpc_call(req.payload).await;
-                        println!("[gRPC Handler] Sending response: {:?}", resp);
-                        let _ = req.response_tx.send(resp);
-                    });
-                    tasks.push(task);
-                }
-                // Optionally, wait for all tasks to finish before exiting
-                for t in tasks {
-                    let _ = t.await;
-                }
-            }            
+            // Use a Vec to keep track of JoinHandles if you want to await them later (optional)
+            while let Some(req) = grpc_rx.recv().await {
+                println!("[gRPC Handler] Received payload: {:?}", req.payload);
+                // Spawn a new task for each request
+                let task = tokio::spawn(async move {
+                    let resp = simulate_grpc_call(req.payload).await;
+                    println!("[gRPC Handler] Sending response: {:?}", resp);
+                    let _ = req.response_tx.send(resp);
+                });
+            }
         })
     });
 
@@ -65,7 +57,7 @@ fn main() {
             let (resp_tx, mut resp_rx) = oneshot::channel();
 
             println!("[Thread {}] Sending payload: {:?}", i, payload);
-            tx.send(MyGrpcRequest {
+            tx.blocking_send(MyGrpcRequest {
                 payload,
                 response_tx: resp_tx,
             })
