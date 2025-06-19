@@ -35,12 +35,9 @@ fn main() {
             // Use a Vec to keep track of JoinHandles if you want to await them later (optional)
             while let Some(req) = grpc_rx.recv().await {
                 println!("[gRPC Handler] Received payload: {:?}", req.payload);
-                // Spawn a new task for each request
-                let task = tokio::spawn(async move {
-                    let resp = simulate_grpc_call(req.payload).await;
-                    println!("[gRPC Handler] Sending response: {:?}", resp);
-                    let _ = req.response_tx.send(resp);
-                });
+                let resp = simulate_grpc_call(req.payload).await;
+                println!("[gRPC Handler] Sending response: {:?}", resp);
+                let _ = req.response_tx.send(resp);
             }
         })
     });
