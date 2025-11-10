@@ -1,3 +1,4 @@
+use derive_builder::Builder;
 use std::any::{Any, TypeId};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -82,32 +83,87 @@ impl Event for AnotherEvent {
     }
 }
 
+struct App {
+    events: EventsManager,
+}
+
+impl App {
+    pub fn run(&self) {
+        let event = SimpleEvent {
+            msg: "Hello".to_string(),
+        };
+
+        self.events.emit(&event);
+        self.events.emit(&event);
+        self.events.emit(&event);
+        self.events.emit(&event);
+        self.events.emit(&event);
+    }
+}
+
+struct AppBuilder {
+    events: Box<dyn FnOnce(&mut EventsManager) + Send>,
+}
+
+impl AppBuilder {
+    fn build(self) -> App {
+        let mut events = EventsManager::new(HashMap::new(), Vec::new());
+        (self.events)(&mut events);
+        App { events }
+    }
+
+    pub fn new(events: Box<dyn FnOnce(&mut EventsManager) + Send>) -> Self {
+        Self { events }
+    }
+}
+
+#[derive(Default)]
+struct Handler {
+    c: Rc<RefCell<i32>>,
+}
+
+impl Handler {
+    fn on_simple(&self, e: &dyn Event) {
+        if e.as_any().downcast_ref::<SimpleEvent>().is_some() {
+            *self.c.borrow_mut() += 1;
+            println!("SimpleEvent: {:?} (c = {})", e, *self.c.borrow());
+        }
+    }
+    fn on_another(&self, e: &dyn Event) {
+        if e.as_any().downcast_ref::<AnotherEvent>().is_some() {
+            *self.c.borrow_mut() += 1;
+            println!("AnotherEvent: {:?} (c = {})", e, *self.c.borrow());
+        }
+    }
+}
+
 fn main() {
-    let mut manager = EventsManager::new(HashMap::new(), Vec::new());
-    let c = Rc::new(RefCell::new(0));
-    let c2 = c.clone();
+    let events1: Box<dyn FnOnce(&mut EventsManager) + Send> = Box::new(move |events| {
+        let c = Rc::new(RefCell::new(0));
+        let c2 = c.clone();
 
-    manager.on::<SimpleEvent, _>(move |ev| {
-        println!("SimpleEvent received: {:?}", ev);
-        *c.borrow_mut() += 1;
-        println!("c = {}", c.borrow().to_string());
+        events.on::<SimpleEvent, _>(move |ev| {
+            println!("SimpleEvent received: {:?}", ev);
+            *c.borrow_mut() += 1;
+            println!("c = {}", *c.borrow());
+        });
+        events.on::<AnotherEvent, _>(move |ev| {
+            println!("AnotherEvent received: {:?}", ev);
+            *c2.borrow_mut() += 1;
+            println!("c = {}", *c2.borrow());
+        });
+
+        let h = Rc::new(Handler::default());
+
+        let h1 = h.clone();
+        events.on::<SimpleEvent, _>(move |e| h1.on_simple(e));
+
+        let h2 = h.clone();
+        events.on::<AnotherEvent, _>(move |e| h2.on_another(e));
     });
-    manager.on::<AnotherEvent, _>(move |ev| {
-        println!("AnotherEvent received: {:?}", ev);
-        *c2.borrow_mut() += 1;
-        println!("c = {}", c2.borrow().to_string());
-    });
 
-    let ff = |ev: &dyn Event| {};
+    let app_builder = AppBuilder::new(events1);
 
-    manager.on_any(ff);
-
-    let event = SimpleEvent {
-        msg: "Hello".to_string(),
-    };
-    manager.emit(&event);
-    manager.emit(&event);
-    manager.emit(&event);
-    manager.emit(&event);
-    manager.emit(&event);
+    let app = app_builder.build();
+    app.run();
 }
