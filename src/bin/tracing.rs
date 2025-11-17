@@ -1,18 +1,22 @@
-use std::cell::RefCell;
-use std::fmt::{Debug, Pointer};
+use std::fmt::Debug;
 use std::io::stdout;
 use std::sync::{Arc, Mutex};
 use std::{fs::File, thread::sleep, time::Duration};
 use tracing::field::{Field, Visit};
-use tracing::{info, instrument, trace, Event, Span, Subscriber};
+use tracing::{instrument, trace, Event, Span, Subscriber};
 use tracing_subscriber::layer::{Context, SubscriberExt};
 use tracing_subscriber::{fmt, fmt::writer::BoxMakeWriter, EnvFilter, Layer};
 
-#[instrument] // a span is created and entered for the whole function; args are recorded
-fn outer(n: i32) {
-    trace!("about to call `work`"); // lightweight event inside the current span
-    let res = work(n, 15);
-    info!(result = res, "done");
+mod a {
+    use crate::work;
+    use tracing::{info, instrument, trace};
+
+    #[instrument] // a span is created and entered for the whole function; args are recorded
+    pub(crate) fn outer(n: i32) {
+        trace!("about to call `work`"); // lightweight event inside the current span
+        let res = work(n, 15);
+        info!(result = res, "done");
+    }
 }
 
 #[instrument(skip(delay_ms), fields(test = 0))] // record x, but don't record delay_ms
@@ -39,11 +43,11 @@ fn main() {
         .with_writer(BoxMakeWriter::new(file))
         .json()
         .with_span_list(false)
-        // .with_line_number(true)
         .with_span_events(fmt::format::FmtSpan::CLOSE)
-        .with_ansi(false);
-
-    // print runtimes to csv file
+        .with_ansi(false)
+        .with_filter(tracing_subscriber::filter::filter_fn(|meta| {
+            meta.target().starts_with("tracing::a")
+        }));
 
     let subscriber = tracing_subscriber::registry()
         .with(file_layer)
@@ -52,7 +56,7 @@ fn main() {
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    outer(21);
+    a::outer(21);
 }
 
 struct CsvValueLayer {
@@ -77,7 +81,7 @@ where
 {
     fn on_event(&self, _event: &Event<'_>, _ctx: Context<'_, S>) {
         let current = _ctx.current_span();
-        println!("{:?}", current);
+        // println!("{:?}", current);
         // current.metadata().as_mut().unwrap().fields().
 
         let mut visit = FieldVisitor::default();
@@ -101,8 +105,8 @@ struct FieldVisitor {
 impl Visit for FieldVisitor {
     fn record_i64(&mut self, field: &Field, value: i64) {
         let name = field.name();
-        println!("name: {}", name);
-        println!("value: {:?}", value);
+        // println!("name: {}", name);
+        // println!("value: {:?}", value);
         match name {
             "y" => self.y = format!("{:?}", value).parse::<i64>().unwrap(),
             "result" => self.result = format!("{:?}", value).parse::<i64>().unwrap(),
